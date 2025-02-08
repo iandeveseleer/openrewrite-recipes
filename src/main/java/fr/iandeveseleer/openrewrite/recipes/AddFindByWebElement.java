@@ -10,7 +10,6 @@ import org.openrewrite.TreeVisitor;
 import org.openrewrite.java.JavaIsoVisitor;
 import org.openrewrite.java.JavaParser;
 import org.openrewrite.java.JavaTemplate;
-import org.openrewrite.java.search.FindMissingTypes;
 import org.openrewrite.java.tree.J;
 
 import java.util.List;
@@ -37,14 +36,14 @@ public class AddFindByWebElement extends Recipe {
     public static class SayHelloVisitor extends JavaIsoVisitor<ExecutionContext> {
         private final JavaTemplate javaTemplate =
                 JavaTemplate.builder( "@FindBy(css = \"#{}\")public WebElement #{};")
-                        .javaParser(JavaParser.fromJavaVersion()
-                                .classpath("selenium-java"))
                         .imports("org.openqa.selenium.WebElement", "org.openqa.selenium.support.FindBy")
+                        .javaParser(JavaParser.fromJavaVersion()
+                                .classpath("selenium-support", "selenium-java", "selenium-api")
+                        )
                         .build();
 
         @Override
         public J.ClassDeclaration visitClassDeclaration(J.ClassDeclaration pClassDeclaration, ExecutionContext pExecutionContext) {
-            doAfterVisit(new FindMissingTypes().getVisitor());
             if (shouldAddFindByElement(getFields(pClassDeclaration))) {
                 J.Block addElement = javaTemplate.apply(new Cursor(getCursor(), pClassDeclaration.getBody()),
                         pClassDeclaration.getBody().getCoordinates().firstStatement(),
