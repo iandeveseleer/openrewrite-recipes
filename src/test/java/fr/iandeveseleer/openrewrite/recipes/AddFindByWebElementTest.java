@@ -1,5 +1,6 @@
 package fr.iandeveseleer.openrewrite.recipes;
 
+import fr.iandeveseleer.openrewrite.recipes.selenium.AddFindByWebElement;
 import org.junit.jupiter.api.Test;
 import org.openrewrite.java.JavaParser;
 import org.openrewrite.test.RecipeSpec;
@@ -13,7 +14,11 @@ class AddFindByWebElementTest implements RewriteTest {
     public void defaults(RecipeSpec spec) {
         spec.recipe(new AddFindByWebElement("org.openqa.selenium.WebElement","el"))
                 .parser(JavaParser.fromJavaVersion()
-                        .classpath("selenium-support", "selenium-java", "selenium-api")
+                        .classpath(
+                                "lombok",
+                                "selenium-support",
+                                "selenium-java",
+                                "selenium-api")
                 );
     }
 
@@ -27,9 +32,9 @@ class AddFindByWebElementTest implements RewriteTest {
                     import org.openqa.selenium.WebElement;
                     import org.openqa.selenium.By;
 
-                    class FooBar {
+                    class FakePage {
                         public WebElement getBrowserNameCell() {
-                            return el(By.cssSelector("div.row:nth-child(6) > div:nth-child(2)"), "Field containing browser name");
+                            return el(By.cssSelector(".css-selector"), "Simple element");
                         }
                 
                         public WebElement el(By by, String description) {
@@ -42,14 +47,13 @@ class AddFindByWebElementTest implements RewriteTest {
                 
                     import org.openqa.selenium.WebElement;
                     import org.openqa.selenium.support.FindBy;
+                    import lombok.Getter;
+                    import org.openqa.selenium.By;
 
-                    class FooBar {
+                    class FakePage {
+                        @Getter
                         @FindBy(css = ".css-selector")
-                        public WebElement myElement;
-                
-                        public WebElement getBrowserNameCell() {
-                            return el(By.cssSelector("div.row:nth-child(6) > div:nth-child(2)"), "Field containing browser name");
-                        }
+                        public WebElement browserNameCell;
                 
                         public WebElement el(By by, String description) {
                             return null;

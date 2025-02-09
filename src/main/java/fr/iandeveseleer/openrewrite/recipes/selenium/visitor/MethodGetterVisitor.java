@@ -3,10 +3,11 @@ package fr.iandeveseleer.openrewrite.recipes.selenium.visitor;
 import org.openrewrite.Tree;
 import org.openrewrite.java.JavaIsoVisitor;
 import org.openrewrite.java.tree.J;
-import org.openrewrite.java.tree.JavaType;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static fr.iandeveseleer.openrewrite.recipes.selenium.utils.MethodUtils.isMethodToDelete;
 
 public class MethodGetterVisitor extends JavaIsoVisitor<List<J.MethodDeclaration>> {
 
@@ -18,9 +19,7 @@ public class MethodGetterVisitor extends JavaIsoVisitor<List<J.MethodDeclaration
 
     @Override
         public J.MethodDeclaration visitMethodDeclaration(J.MethodDeclaration pCurrentMethod, List<J.MethodDeclaration> pMethodsList) {
-            if (pCurrentMethod.getReturnTypeExpression() != null &&
-                    pCurrentMethod.getReturnTypeExpression().getType() instanceof JavaType.Class returnType &&
-                    fullyQualifiedClassName.equals(returnType.getFullyQualifiedName())) {
+            if (isMethodToDelete(pCurrentMethod, fullyQualifiedClassName)) {
                 pMethodsList.add(pCurrentMethod);
             }
             return super.visitMethodDeclaration(pCurrentMethod, pMethodsList);

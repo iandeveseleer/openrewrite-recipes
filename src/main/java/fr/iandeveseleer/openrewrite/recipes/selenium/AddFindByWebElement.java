@@ -1,22 +1,28 @@
-package fr.iandeveseleer.openrewrite.recipes;
+package fr.iandeveseleer.openrewrite.recipes.selenium;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import fr.iandeveseleer.openrewrite.recipes.selenium.visitor.MethodGetterVisitor;
+import fr.iandeveseleer.openrewrite.recipes.utils.ORStringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.openrewrite.*;
 import org.openrewrite.java.JavaIsoVisitor;
 import org.openrewrite.java.JavaParser;
 import org.openrewrite.java.JavaTemplate;
+import org.openrewrite.java.search.FindMissingTypes;
 import org.openrewrite.java.tree.Expression;
 import org.openrewrite.java.tree.J;
 import org.openrewrite.java.tree.Statement;
 
 import java.util.List;
 
+import static fr.iandeveseleer.openrewrite.recipes.selenium.utils.MethodUtils.isMethodToDelete;
+
 public class AddFindByWebElement extends Recipe {
     public static final String SELENIUM_WEB_ELEMENT = "org.openqa.selenium.WebElement";
     private static final String SELENIUM_FIND_BY = "org.openqa.selenium.support.FindBy";
+    private static final String SELENIUM_BY = "org.openqa.selenium.By";
+    private static final String LOMBOK_GETTER = "lombok.Getter";
 
     @Option(displayName = "Fully qualified class name",
             description = "A fully qualified class name, will be used to identify which method are to transform to @FindBy fields.",
@@ -30,7 +36,6 @@ public class AddFindByWebElement extends Recipe {
     @JsonCreator
     public AddFindByWebElement(@JsonProperty("fullyQualifiedClassName") String fullyQualifiedClassName,
                                @JsonProperty("returnCalledMethodInvocation") String returnCalledMethodInvocation) {
-        System.out.println("fullyQualifiedClassName: " + fullyQualifiedClassName);
         this.fullyQualifiedClassName = fullyQualifiedClassName;
         this.returnCalledMethodInvocation = returnCalledMethodInvocation;
     }
@@ -52,10 +57,14 @@ public class AddFindByWebElement extends Recipe {
 
     public static class AddFindByElementVisitor extends JavaIsoVisitor<ExecutionContext> {
         private final JavaTemplate javaTemplate =
-                JavaTemplate.builder("@FindBy(css = \"#{}\")public WebElement #{};")
-                        .imports(SELENIUM_WEB_ELEMENT, SELENIUM_FIND_BY)
+                JavaTemplate.builder("@Getter@FindBy(css = \"#{}\")public WebElement #{};")
+                        .imports(SELENIUM_WEB_ELEMENT, SELENIUM_FIND_BY, LOMBOK_GETTER)
                         .javaParser(JavaParser.fromJavaVersion()
-                                .classpath("selenium-support", "selenium-java", "selenium-api"))
+                                .classpath(
+                                        "lombok",
+                                        "selenium-support",
+                                        "selenium-java",
+                                        "selenium-api"))
                         .build();
         private final String fullyQualifiedClassName;
         private final String returnCalledMethodInvocation;
@@ -66,10 +75,20 @@ public class AddFindByWebElement extends Recipe {
         }
 
         @Override
-        public J.ClassDeclaration visitClassDeclaration(J.ClassDeclaration pClassDeclaration, ExecutionContext pExecutionContext) {
-            List<J.MethodDeclaration> matchingMethods = MethodGetterVisitor.getMethods(fullyQualifiedClassName, pClassDeclaration);
+        public J.MethodDeclaration visitMethodDeclaration(J.MethodDeclaration pCurrentMethod, ExecutionContext pExecutionContext) {
+            if (isMethodToDelete(pCurrentMethod, fullyQualifiedClassName)) {
+                maybeRemoveImport(SELENIUM_BY);
+                return null;
+            }
+            return super.visitMethodDeclaration(pCurrentMethod, pExecutionContext);
+        }
 
-            if (shouldAddFindByElement(getFields(pClassDeclaration))) {
+        @Override
+        public J.ClassDeclaration visitClassDeclaration(J.ClassDeclaration pClassDeclaration, ExecutionContext pExecutionContext) {
+            if(pClassDeclaration.getModifiers().stream().noneMatch(modifier -> modifier.getType() == J.Modifier.Type.Abstract)
+                    && pClassDeclaration.getName().getSimpleName().endsWith("Page")) {
+                List<J.MethodDeclaration> matchingMethods = MethodGetterVisitor.getMethods(fullyQualifiedClassName, pClassDeclaration);
+                doAfterVisit(new FindMissingTypes().getVisitor());
                 // Iterate one founded methods
                 for (J.MethodDeclaration method : matchingMethods) {
                     // Get the method body
@@ -92,17 +111,21 @@ public class AddFindByWebElement extends Recipe {
                                     // If as matching count of arguments
                                     if (arguments.size() == 2) {
                                         // Store cssSelector and element description
+                                        System.out.println(arguments.get(0));
+                                        System.out.println(arguments.get(1));
                                         J.MethodInvocation bySelector = (J.MethodInvocation) arguments.get(0);
+                                        String methodName = method.getSimpleName();
                                         J.Literal cssSelector = ((J.Literal) bySelector.getArguments().get(0));
                                         J.Literal description = (J.Literal) arguments.get(1);
 
                                         // Add a new @FindBy(css = cssSelector) field
                                         J.Block addElement = javaTemplate.apply(new Cursor(getCursor(), pClassDeclaration.getBody()),
                                                 pClassDeclaration.getBody().getCoordinates().firstStatement(),
-                                                cssSelector.getValue(), "myElement");
+                                                cssSelector.getValue(), ORStringUtils.extractElementName(methodName));
                                         pClassDeclaration = pClassDeclaration.withBody(addElement);
 
                                         // Add missing imports if needed
+                                        maybeAddImport(LOMBOK_GETTER, null, false);
                                         maybeAddImport(SELENIUM_FIND_BY, null, false);
                                         maybeAddImport(SELENIUM_WEB_ELEMENT, null, false);
                                     }
@@ -114,18 +137,6 @@ public class AddFindByWebElement extends Recipe {
             }
 
             return super.visitClassDeclaration(pClassDeclaration, pExecutionContext);
-        }
-
-        private List<J.VariableDeclarations> getFields(J.ClassDeclaration classDecl) {
-            return classDecl.getBody().getStatements().stream()
-                    .filter(statement -> statement instanceof J.VariableDeclarations)
-                    .map(J.VariableDeclarations.class::cast)
-                    .toList();
-        }
-
-        private boolean shouldAddFindByElement(List<J.VariableDeclarations> variableDeclarations) {
-            return variableDeclarations.stream().noneMatch(variableDeclaration -> variableDeclaration.getVariables().stream()
-                    .anyMatch(variableDeclarator -> variableDeclarator.getSimpleName().equals("myElement")));
         }
     }
 }

@@ -12,8 +12,8 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.source>1.8</maven.compiler.source>
-    <maven.compiler.target>1.8</maven.compiler.target>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
     <maven.compiler.testSource>17</maven.compiler.testSource>
     <maven.compiler.testTarget>17</maven.compiler.testTarget>
     <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
@@ -89,8 +89,6 @@
               <version>${lombok.version}</version>
             </path>
           </annotationProcessorPaths>
-          <source>16</source>
-          <target>16</target>
         </configuration>
       </plugin>
     </plugins>
